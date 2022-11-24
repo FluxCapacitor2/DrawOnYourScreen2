@@ -34,6 +34,19 @@
     min-height: 0.6em;
 }
 
+/* on-screen buttons displayed while drawing */
+.draw-on-your-screen-button-icon {
+    margin: 10px;
+    width: 16px;
+    height: 16px;
+}
+
+.draw-on-your-screen-buttons {
+    border-radius: 10px;
+    margin: 0px;
+    padding: 5px;
+}
+
 /* context menu */
 
 .draw-on-your-screen-menu {

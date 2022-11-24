@@ -37,6 +37,7 @@ const Me = ExtensionUtils.getCurrentExtension();
 const Area = Me.imports.area;
 const Files = Me.imports.files;
 const Helper = Me.imports.helper;
+const Buttons = Me.imports.buttons;
 const _ = imports.gettext.domain(Me.metadata['gettext-domain']).gettext;
 
 const GS_VERSION = Config.PACKAGE_VERSION;
@@ -116,6 +117,7 @@ const AreaManager = GObject.registerClass({
         this.desktopSettingHandler = Me.settings.connect('changed::drawing-on-desktop', this.onDesktopSettingChanged.bind(this));
         this.persistentOverRestartsSettingHandler = Me.settings.connect('changed::persistent-over-restarts', this.onPersistentOverRestartsSettingChanged.bind(this));
         this.persistentOverTogglesSettingHandler = Me.settings.connect('changed::persistent-over-toggles', this.onPersistentOverTogglesSettingChanged.bind(this));
+        this.cornerButtonsSettingHandler = Me.settings.connect('changed::corner-buttons', this.onCornerButtonsSettingChanged.bind(this));
     }
     
     get persistentOverToggles() {
@@ -149,14 +151,28 @@ const AreaManager = GObject.registerClass({
         this.onPersistentOverRestartsSettingChanged();
         this.onDesktopSettingChanged();
     }
+
+    onCornerButtonsSettingChanged() {
+        // Re-create all drawing areas with/without the corner buttons
+        this.updateAreas();
+    }
     
     updateIndicator() {
         if (this.indicator) {
+            if (this.indicatorToggleHandler) {
+                this.indicator.disconnect(this.indicatorToggleHandler);
+            }
             this.indicator.disable();
             this.indicator = null;
+            Main.panel.statusArea['draw-on-your-screen-indicator'].destroy();
         }
-        if (!Me.settings.get_boolean('indicator-disabled'))
+        if (!Me.settings.get_boolean('indicator-disabled')) {
             this.indicator = new DrawingIndicator();
+            Main.panel.addToStatusArea('draw-on-your-screen-indicator', this.indicator, 0);
+            this.indicatorToggleHandler = this.indicator.connect('toggle-drawing-mode', () => {
+                this.toggleDrawing();
+            });
+        }
     }
     
     updateAreas() {
@@ -169,6 +185,7 @@ const AreaManager = GObject.registerClass({
         for (let i = 0; i < this.monitors.length; i++) {
             let monitor = this.monitors[i];
             let helper = new Helper.DrawingHelper({ name: 'drawOnYourSreenHelper' + i }, monitor);
+            let buttons = new Buttons.DrawingButtons({ name: 'drawOnYourScreenButtons' + i}, monitor);
             let loadPersistent = i == Main.layoutManager.primaryIndex && this.persistentOverRestarts;
             // Some utils for the drawing area menus.
             let areaManagerUtils = {
@@ -176,7 +193,7 @@ const AreaManager = GObject.registerClass({
                 togglePanelAndDockOpacity: this.togglePanelAndDockOpacity.bind(this),
                 openPreferences: this.openPreferences.bind(this)
             };
-            let area = new Area.DrawingArea({ name: 'drawOnYourSreenArea' + i }, monitor, helper, areaManagerUtils, loadPersistent);
+            let area = new Area.DrawingArea({ name: 'drawOnYourSreenArea' + i }, monitor, helper, buttons, areaManagerUtils, loadPersistent);
             
             Main.layoutManager._backgroundGroup.insert_child_above(area, Main.layoutManager._bgManagers[i].backgroundActor);
             if (!this.onDesktop)
@@ -188,6 +205,7 @@ const AreaManager = GObject.registerClass({
             area.updateActionModeHandler = area.connect('update-action-mode', this.updateActionMode.bind(this));
             area.pointerCursorChangedHandler = area.connect('pointer-cursor-changed', this.setCursor.bind(this));
             area.showOsdHandler = area.connect('show-osd', this.showOsd.bind(this));
+            buttons.leaveDrawingHandler = buttons.connect('leave-drawing-mode', this.toggleDrawing.bind(this));
             this.areas.push(area);
         }
     }
@@ -532,6 +550,10 @@ const AreaManager = GObject.registerClass({
             Me.settings.disconnect(this.persistentOverRestartsSettingHandler);
             this.persistentOverRestartsSettingHandler = null;
         }
+        if (this.cornerButtonsSettingHandler) {
+            Me.settings.disconnect(this.cornerButtonsSettingHandler);
+            this.cornerButtonsSettingHandler = null;
+        }
         
         if (this.activeArea)
             this.toggleDrawing();
@@ -548,22 +570,25 @@ const AreaManager = GObject.registerClass({
 
 const DrawingIndicator = GObject.registerClass({
     GTypeName: `${UUID}-Indicator`,
-}, class DrawingIndicator extends GObject.Object{
+    Signals: { 'toggle-drawing-mode': {}, },
+}, class DrawingIndicator extends PanelMenu.Button {
 
     _init() {
-        let [menuAlignment, dontCreateMenu] = [0, true];
-        this.button = new PanelMenu.Button(menuAlignment, "Drawing Indicator", dontCreateMenu);
-        this.buttonActor = GS_VERSION < '3.33.0' ? this.button.actor: this.button;
-        Main.panel.addToStatusArea('draw-on-your-screen-indicator', this.button);
-        
+        super._init(0.0, "Drawing Indicator");
+
         this.icon = new St.Icon({ icon_name: 'applications-graphics-symbolic',
-                                  style_class: 'system-status-icon screencast-indicator' });
-        this.buttonActor.add_child(this.icon);
-        this.buttonActor.visible = false;
+                                  style_class: 'system-status-icon' });
+        this.add_actor(this.icon);
+
+        this.visible = Me.settings.get_boolean('indicator-always-visible');
+
+        this.connect('button-press-event', () => {
+            this.emit('toggle-drawing-mode');
+        });
     }
 
     sync(visible) {
-        this.buttonActor.visible = visible;
+        this.visible = visible || Me.settings.get_boolean('indicator-always-visible');
     }
     
     disable() {

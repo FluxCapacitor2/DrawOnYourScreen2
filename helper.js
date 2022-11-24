@@ -45,7 +45,7 @@ const UUID = Me.uuid.replace(/@/gi, '_at_').replace(/[^a-z0-9+_-]/gi, '_');
 //TODO: Review this class later
 var DrawingHelper = GObject.registerClass({
     GTypeName: `${UUID}-DrawingHelper`,
-}, class DrawingHelper  extends St.ScrollView {
+}, class DrawingHelper extends St.ScrollView {
     
     _init(params, monitor) {
         params.style_class = 'osd-window draw-on-your-screen-helper';

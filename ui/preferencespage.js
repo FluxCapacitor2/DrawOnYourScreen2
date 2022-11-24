@@ -78,6 +78,39 @@ var Preferences = GObject.registerClass({
           grp_Global.add(ActionRow);
         });
 
+        // ---------------
+        let ActionRow = Adw.ActionRow.new();
+        let ActionRow_input = new Gtk.SpinButton({
+          adjustment: new Gtk.Adjustment({
+            upper: 512,
+            lower: 1,
+            step_increment: 1,
+            page_increment: 1,
+            page_size: 0
+          }),
+          climb_rate: 1,
+          digits: 0,
+          numeric: true
+        });
+        let eraserThicknessKey = schema.get_key('eraser-thickness');
+
+        ActionRow.set_title(eraserThicknessKey.get_summary());
+        let description = eraserThicknessKey.get_description();
+
+        if (description)
+          ActionRow.set_subtitle(eraserThicknessKey.get_description());
+
+        ActionRow.add_suffix(ActionRow_input);
+        ActionRow_input.valign = Gtk.Align.CENTER;
+        ActionRow_input.set_value(settings.get_int('eraser-thickness'))
+
+        ActionRow_input.connect('value-changed', (widget) => {
+          settings.set_int('eraser-thickness', widget.get_value());
+        });
+
+        grp_Global.add(ActionRow);
+        // ---------------
+
         let grp_Internal = Adw.PreferencesGroup.new();
         grp_Internal.set_title("Internal");
 

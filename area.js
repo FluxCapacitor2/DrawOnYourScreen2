@@ -113,7 +113,7 @@ const DrawingLayer = GObject.registerClass({
     }
 });
 
-// Darwing area is a container that manages drawing elements and drawing layers.
+// Drawing area is a container that manages drawing elements and drawing layers.
 // There is a drawing element for each "brushstroke".
 // There is a separated layer for the current element so only the current element is redisplayed when drawing.
 // It handles pointer/mouse/(touch?) events and some keyboard events.
@@ -125,15 +125,21 @@ var DrawingArea = GObject.registerClass({
                'leave-drawing-mode': {} },
 }, class DrawingArea extends St.Widget{
 
-    _init(params, monitor, helper, areaManagerUtils, loadPersistent) {
+    _init(params, monitor, helper, buttons, areaManagerUtils, loadPersistent) {
         super._init({ style_class: 'draw-on-your-screen', name: params.name});
         this.monitor = monitor;
         this.helper = helper;
+        this.buttons = buttons;
         this.areaManagerUtils = areaManagerUtils;
         
         this.layerContainer = new St.Widget({ width: monitor.width, height: monitor.height });
         this.add_child(this.layerContainer);
         this.add_child(this.helper);
+        if (Me.settings.get_boolean('corner-buttons')) {
+            this.add_child(this.buttons);
+            this.buttons.showButtons();
+            this.buttons.openMenuHandler = this.buttons.connect('open-menu', this.openMenu.bind(this));
+        }
         
         this.backLayer = new DrawingLayer(this._repaintBack.bind(this), this._getHasImageBack.bind(this));
         this.layerContainer.add_child(this.backLayer);
@@ -177,6 +183,10 @@ var DrawingArea = GObject.registerClass({
         if (!this._menu)
             this._menu = new Menu.DrawingMenu(this, this.monitor, Tool, this.areaManagerUtils);
         return this._menu;
+    }
+
+    openMenu() {
+        this.menu.open();
     }
     
     closeMenu(){
@@ -268,6 +278,10 @@ var DrawingArea = GObject.registerClass({
             this._fontFamilies = [this.defaultFontFamily].concat(FontGenericFamilies, otherFontFamilies);
         }
         return this._fontFamilies;
+    }
+
+    get eraserThickness() {
+        return Me.settings.get_int("eraser-thickness");
     }
     
     _onDrawingSettingsChanged() {
@@ -419,20 +433,24 @@ var DrawingArea = GObject.registerClass({
             return Clutter.EVENT_STOP;
         }
         
-        if (button == 1) {
+        if (button == 1) { // left click
             if (this.hasManipulationTool) {
                 if (this.grabbedElement)
                     this._startTransforming(x, y, controlPressed, shiftPressed);
             } else {
-                this._startDrawing(x, y, shiftPressed, event.get_device());
+                this._startDrawing(x, y, shiftPressed, event.get_device(), false);
             }
             return Clutter.EVENT_STOP;
-        } else if (button == 2) {
+        } else if (button == 2) { // middle click
             this.switchFill();
-        } else if (button == 3) {
-            this._stopAll();
-            
-            this.menu.open(x, y);
+        } else if (button == 3) { // right click
+            if (Me.settings.get_boolean("right-click-to-erase")) {
+                this._startDrawing(x, y, shiftPressed, event.get_device(), true);
+            } else {
+                this._stopAll();
+                
+                this.menu.open(x, y);
+            }
             return Clutter.EVENT_STOP;
         }
 
@@ -667,7 +685,7 @@ var DrawingArea = GObject.registerClass({
         this._redisplay();
     }
 
-    _startDrawing(stageX, stageY, shiftPressed, clickedDevice) {
+    _startDrawing(stageX, stageY, shiftPressed, clickedDevice, isRightClickErasing) {
         let [success, startX, startY] = this._transformStagePoint(stageX, stageY);
 
         if (!success)
@@ -700,11 +718,19 @@ var DrawingArea = GObject.registerClass({
             this.currentElement = new Elements.DrawingElement({
                 shape: this.currentTool,
                 color: this.currentColor,
-                eraser: shiftPressed,
+                eraser: shiftPressed || isRightClickErasing,
                 fill: this.fill,
                 fillRule: this.currentFillRule,
-                line: { lineWidth: this.currentLineWidth, lineJoin: this.currentLineJoin, lineCap: this.currentLineCap },
-                dash: { active: this.dashedLine, array: this.dashedLine ? [this.dashArray[0] || this.currentLineWidth, this.dashArray[1] || this.currentLineWidth * 3] : [0, 0] , offset: this.dashOffset },
+                line: { 
+                    lineWidth: isRightClickErasing ? this.eraserThickness : this.currentLineWidth,
+                    lineJoin: this.currentLineJoin, 
+                    lineCap: this.currentLineCap 
+                },
+                dash: {
+                    active: this.dashedLine,
+                    array: this.dashedLine ? [this.dashArray[0] || this.currentLineWidth, this.dashArray[1] || this.currentLineWidth * 3] : [0, 0],
+                    offset: this.dashOffset
+                },
                 points: []
             });
         }
@@ -1267,6 +1293,8 @@ var DrawingArea = GObject.registerClass({
     
     _onDestroy() {
         Me.drawingSettings.disconnect(this.drawingSettingsChangedHandler);
+        this.buttons.disconnect(this.buttons.showMenuHandler);
+        this.buttons.disconnect(this.buttons.leaveDrawingHandler);
         this.erase();
         if (this._menu)
             this._menu.disable();

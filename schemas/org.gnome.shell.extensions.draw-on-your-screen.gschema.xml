@@ -8,6 +8,21 @@
       <summary>Drawing on the desktop</summary>
       <description><![CDATA[<i>Draw On Your Screen</i> becomes <i>Draw On Your Desktop</i>]]></description>
     </key>
+    <key type="b" name="corner-buttons">
+      <default>false</default>
+      <summary>Corner buttons</summary>
+      <description>Adds on-screen buttons to exit drawing mode and to open the menu</description>
+    </key>
+    <key type="b" name="right-click-to-erase">
+      <default>false</default>
+      <summary>Right click to erase</summary>
+      <description>Hold down the right click button to erase text without using the keyboard</description>
+    </key>
+    <key type="i" name="eraser-thickness">
+      <default>15</default>
+      <summary>Eraser thickness</summary>
+      <description>The size of the right-click eraser</description>
+    </key>
     <key type="as" name="erase-drawings">
       <default>["&lt;Alt&gt;&lt;Super&gt;e"]</default>
       <summary>Erase all drawings</summary>
@@ -15,6 +30,11 @@
     <key type="b" name="indicator-disabled">
       <default>false</default>
       <summary>Disable panel indicator</summary>
+    </key>
+    <key type="b" name="indicator-always-visible">
+      <default>false</default>
+      <summary>Indicator always visible</summary>
+      <description>Keeps the drawing indicator always visible, clicking it will enable drawing mode</description>
     </key>
     <key type="b" name="osd-disabled">
       <default>false</default>
